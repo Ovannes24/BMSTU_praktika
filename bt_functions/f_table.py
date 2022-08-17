@@ -66,4 +66,12 @@ def regSplit(sdf, window1):
     
     return regSplit
 
+def profit(tdf, sdf):
+    next_price = tdf.Close.shift(-1)
+    next_price.iloc[-1] = sdf.Close.iloc[-1]
 
+    past_price = tdf.Close
+
+    profit = np.array((next_price/past_price)[tdf.long])
+    
+    return profit
