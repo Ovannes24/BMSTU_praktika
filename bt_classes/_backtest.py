@@ -1,5 +1,6 @@
 from bt_functions.f_table import redate_data, EMA_n, RSI, cross
 from bt_functions.f_table import RSI_short_arr, linreg, regSplit, profit
+from bt_functions.f_lstm import LSTM_pred
 
 from bt_functions.f_plot import plot_arrows
 
@@ -25,11 +26,19 @@ class BackTest:
         self.mdf = redate_data(self.df, start, end, start_delta=start_delta, end_delta=end_delta)
         self.mdf['dv'] = np.array(self.mdf.index.map(dt.datetime.toordinal))
         
+        self.m_train, self.m_test, self.y_pred = LSTM_pred(self.mdf, train_size=300, epochs=1)
+        
+        self.mdf = pd.concat([self.m_train, self.y_pred])
+        
+        self.mdf['dv'] = np.array(self.mdf.index.map(dt.datetime.toordinal))
+        
+        
+        
     def redate_mdf(self, start, end, start_delta=250, end_delta=0):
         self.mdf = redate_data(self.df, start, end, start_delta=start_delta, end_delta=end_delta)
     
     def make_strategy(self):
-        self.sdf = self.mdf[['dv', 'Open', 'High', 'Low', 'Close']]
+        self.sdf = self.mdf[['dv', 'Close']]
         
         self.sdf['RSI_14'] = RSI(self.sdf.Close, 14)
         self.sdf['RSI_14'].fillna(100)
@@ -62,7 +71,7 @@ class BackTest:
             self.sdf.loc[mask,'regSplitDown'] = self.sdf.loc[mask, mask[mask].name] - delta
 
 
-
+        self.sdf.loc[self.y_pred.index, 'Close'] = self.m_test.Close
 
         self.sdf['RSI_short'] = RSI_short_arr(self.sdf['RSI_14'])
         self.sdf['RSI_long'] = ~self.sdf['RSI_short']
@@ -121,16 +130,14 @@ class BackTest:
         plot_arrows(fig, self.up, 'up')
         plot_arrows(fig, self.down, 'down')
 
+        fig.add_trace(go.Scatter(x=self.y_pred.index, y=self.y_pred.Close, line=dict(color='red'), name='prediction'))
+        fig.add_trace(go.Scatter(x=self.m_test.index, y=self.m_test.Close, line=dict(color='green'), name='actual'))
         fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.regSplit, line=dict(color='purple'), name='chMID'))
         fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.regSplitUp, line=dict(color='purple'),name='chUP'))
         fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.regSplitDown, line=dict(color='purple'), name='chDOWN'))
 
         fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.EMA_10, line=dict(color='rgba(250,0,0, 0.2)'), name='EMA 10'))
         fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.EMA_200, line=dict(color='rgba(0,250,0, 0.2)'), name='EMA 200'))
-
-        #fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.RSI_14, line=dict(color='rgba(230,230,0, 0.6)'), name='RSI 14'))
-        #fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.line_70, line=dict(color='rgba(230,0,0, 0.6)'), name='70'))
-        #fig.add_trace(go.Scatter(x=self.sdf.index, y=self.sdf.line_30, line=dict(color='rgba(230,0,0, 0.6)'), name='30'))
 
 
         fig.update_layout(legend_orientation="h",
